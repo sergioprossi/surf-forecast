@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import settings
 from src.models.database import init_db
@@ -55,12 +56,23 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS — allow mobile app and local development
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # TODO: restrict to specific origins in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Register route modules
+from src.api.auth import router as auth_router
 from src.api.routes.alerts import router as alerts_router
 from src.api.routes.feedback import router as feedback_router
 from src.api.routes.forecast import router as forecast_router
 from src.api.routes.spots import router as spots_router
 
+app.include_router(auth_router)
 app.include_router(spots_router)
 app.include_router(forecast_router)
 app.include_router(alerts_router)

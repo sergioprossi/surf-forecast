@@ -6,8 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.auth import require_user
 from src.models.database import get_session
-from src.models.orm import AlertConfig
+from src.models.orm import AlertConfig, User
 from src.models.schemas import AlertConfigCreate, AlertConfigResponse
 
 router = APIRouter(prefix="/api/v1", tags=["alerts"])
@@ -17,6 +18,7 @@ router = APIRouter(prefix="/api/v1", tags=["alerts"])
 async def create_alert(
     body: AlertConfigCreate,
     session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_user),
 ) -> AlertConfigResponse:
     """Configure a new surf alert."""
     row = AlertConfig(
@@ -65,6 +67,7 @@ async def list_alerts(
 async def delete_alert(
     alert_id: int,
     session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_user),
 ) -> dict:
     """Delete an alert configuration."""
     result = await session.execute(

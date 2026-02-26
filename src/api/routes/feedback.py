@@ -8,8 +8,9 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.auth import require_user
 from src.models.database import get_session
-from src.models.orm import ScoredForecast, SessionFeedback
+from src.models.orm import ScoredForecast, SessionFeedback, User
 from src.models.schemas import SessionFeedbackCreate, SessionFeedbackResponse
 
 router = APIRouter(prefix="/api/v1", tags=["feedback"])
@@ -19,6 +20,7 @@ router = APIRouter(prefix="/api/v1", tags=["feedback"])
 async def submit_feedback(
     body: SessionFeedbackCreate,
     session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_user),
 ) -> SessionFeedbackResponse:
     """Log actual surf session for model calibration."""
     # Try to find the predicted score for this spot/time
