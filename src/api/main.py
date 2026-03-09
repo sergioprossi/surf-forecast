@@ -27,6 +27,14 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialized")
 
+    # Run initial data collection so the DB isn't empty after a fresh deploy
+    logger.info("Running initial data collection...")
+    try:
+        await collect_and_score()
+        logger.info("Initial data collection complete")
+    except Exception:
+        logger.exception("Initial data collection failed — scheduler will retry")
+
     # Schedule periodic data collection + scoring
     scheduler.add_job(
         collect_and_score,
@@ -77,6 +85,12 @@ app.include_router(spots_router)
 app.include_router(forecast_router)
 app.include_router(alerts_router)
 app.include_router(feedback_router)
+
+
+@app.get("/health")
+async def health():
+    """Health check for Railway and uptime monitors."""
+    return {"status": "ok"}
 
 
 @app.get("/")

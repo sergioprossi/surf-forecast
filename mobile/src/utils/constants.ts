@@ -15,7 +15,7 @@ export const NORTADA_THRESHOLD = 0.3;
 export const REFETCH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
 /** API base URL — override with EXPO_PUBLIC_API_URL env var */
-export const DEFAULT_API_URL = 'http://localhost:8000';
+export const DEFAULT_API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000';
 
 /** Compass directions for wind/swell display */
 export const COMPASS_POINTS = [

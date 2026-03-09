@@ -12,6 +12,7 @@ dependencies = [
     "uvicorn[standard]>=0.24",
     "sqlalchemy>=2.0",
     "aiosqlite>=0.19",
+    "asyncpg>=0.29",
     "httpx>=0.25",
     "apscheduler>=3.10",
     "python-telegram-bot>=20.7",

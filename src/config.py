@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
-from pydantic import Field
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -44,6 +44,17 @@ class Settings(BaseSettings):
     scheduler_interval_minutes: int = 60
 
     model_config = {"env_file": str(BASE_DIR / ".env"), "extra": "ignore"}
+
+    @model_validator(mode="after")
+    def _fix_postgres_url(self) -> "Settings":
+        """Railway provides DATABASE_URL as postgresql:// but asyncpg needs
+        the postgresql+asyncpg:// scheme."""
+        url = self.database_url
+        if url.startswith("postgresql://"):
+            self.database_url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        elif url.startswith("postgres://"):
+            self.database_url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+        return self
 
 
 settings = Settings()
