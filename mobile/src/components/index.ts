@@ -10,3 +10,5 @@ export { SpotCard } from './SpotCard';
 export { SwellInfo } from './SwellInfo';
 export { TideChart } from './TideChart';
 export { WindIndicator } from './WindIndicator';
+export { AlertEditor } from './AlertEditor';
+export { Icon } from './Icon';

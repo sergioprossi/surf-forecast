@@ -58,6 +58,13 @@ export const SpotSnapshotSchema = z.object({
   total_score: z.number(),
   rating: z.string(),
   summary: z.string(),
+  components: ComponentScoresSchema.nullable().optional(),
+  conditions: RawConditionsSchema.nullable().optional(),
+});
+
+export const CompareResponseSchema = z.object({
+  time: z.string(),
+  spots: z.array(SpotSnapshotSchema),
 });
 
 export const CurrentConditionsSchema = z.object({
@@ -83,4 +90,21 @@ export const TokenResponseSchema = z.object({
   access_token: z.string(),
   refresh_token: z.string(),
   token_type: z.string(),
+});
+
+export const AlertConfigSchema = z.object({
+  id: z.number(),
+  channel: z.enum(['telegram', 'email']),
+  chat_id: z.string().nullable(),
+  email: z.string().nullable(),
+  spot_ids: z.array(z.string()),
+  min_score: z.number(),
+  enabled: z.boolean(),
+  quiet_start_hour: z.number(),
+  quiet_end_hour: z.number(),
+});
+
+export const AlertListResponseSchema = z.object({
+  items: z.array(AlertConfigSchema),
+  next_cursor: z.number().nullable(),
 });

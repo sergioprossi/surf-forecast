@@ -1,7 +1,7 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import React from 'react';
-import { Text } from 'react-native';
 
+import { Icon } from '../components/Icon';
 import { AlertsScreen } from '../screens/AlertsScreen';
 import { CompareScreen } from '../screens/CompareScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
@@ -11,12 +11,10 @@ import type { MainTabParamList } from './types';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-function TabIcon({ label, focused }: { label: string; focused: boolean }) {
-  return (
-    <Text style={{ color: focused ? colors.accent : colors.textTertiary, fontSize: 20 }}>
-      {label}
-    </Text>
-  );
+type IconName = React.ComponentProps<typeof Icon>['name'];
+
+function TabIcon({ name, color }: { name: IconName; color: string }) {
+  return <Icon name={name} color={color} />;
 }
 
 export function MainTabs() {
@@ -39,7 +37,7 @@ export function MainTabs() {
         component={HomeStack}
         options={{
           tabBarLabel: 'Home',
-          tabBarIcon: ({ focused }) => <TabIcon label="🏄" focused={focused} />,
+          tabBarIcon: ({ color }) => <TabIcon name="waves" color={color} />,
         }}
       />
       <Tab.Screen
@@ -47,7 +45,7 @@ export function MainTabs() {
         component={CompareScreen}
         options={{
           tabBarLabel: 'Compare',
-          tabBarIcon: ({ focused }) => <TabIcon label="⚖️" focused={focused} />,
+          tabBarIcon: ({ color }) => <TabIcon name="scale" color={color} />,
         }}
       />
       <Tab.Screen
@@ -55,7 +53,7 @@ export function MainTabs() {
         component={AlertsScreen}
         options={{
           tabBarLabel: 'Alerts',
-          tabBarIcon: ({ focused }) => <TabIcon label="🔔" focused={focused} />,
+          tabBarIcon: ({ color }) => <TabIcon name="bell" color={color} />,
         }}
       />
       <Tab.Screen
@@ -63,7 +61,7 @@ export function MainTabs() {
         component={ProfileScreen}
         options={{
           tabBarLabel: 'Profile',
-          tabBarIcon: ({ focused }) => <TabIcon label="👤" focused={focused} />,
+          tabBarIcon: ({ color }) => <TabIcon name="user" color={color} />,
         }}
       />
     </Tab.Navigator>

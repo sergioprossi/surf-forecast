@@ -44,9 +44,13 @@ async def evaluate_alerts() -> None:
     from src.models.orm import AlertConfig, AlertLog, ScoredForecast
 
     async with async_session() as session:
-        # Get enabled alert configs
+        # Get enabled alert configs. Legacy configs created before alerts were
+        # user-scoped have no owner: nobody can see or disable them in the app,
+        # so they are never sent.
         result = await session.execute(
-            select(AlertConfig).where(AlertConfig.enabled == True)
+            select(AlertConfig)
+            .where(AlertConfig.enabled == True)  # noqa: E712
+            .where(AlertConfig.user_id.is_not(None))
         )
         configs = result.scalars().all()
 

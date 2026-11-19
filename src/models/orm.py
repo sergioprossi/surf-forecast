@@ -125,6 +125,9 @@ class AlertConfig(Base):
     __tablename__ = "alert_configs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # Owner. Nullable only so pre-existing rows (created before alerts were
+    # user-scoped) survive the column migration; the API always sets it.
+    user_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
     channel: Mapped[str] = mapped_column(String(16))  # "telegram" or "email"
     chat_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     email: Mapped[str | None] = mapped_column(String(128), nullable=True)

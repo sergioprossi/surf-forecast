@@ -14,7 +14,7 @@ export const colors = {
   // Text
   textPrimary: '#FFFFFF',
   textSecondary: '#A0A0A0',
-  textTertiary: '#666666',
+  textTertiary: '#8A8A8A', // 4.5:1+ on background (was #666666, ~3.5:1)
 
   // Score colors
   scoreEpic: '#22C55E',
