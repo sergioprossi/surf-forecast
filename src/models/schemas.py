@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -76,6 +77,10 @@ class SpotSnapshot(BaseModel):
     total_score: float
     rating: str
     summary: str
+    # Optional detail — populated by /forecast/compare so the Compare screen can
+    # show conditions side by side. Left out by /conditions/now to keep it light.
+    components: ComponentScores | None = None
+    conditions: RawConditions | None = None
 
 
 class CompareResponse(BaseModel):
@@ -114,22 +119,71 @@ class CurrentConditions(BaseModel):
 # Alerts
 # ---------------------------------------------------------------------------
 
+def _validate_spot_ids(spot_ids: list[str]) -> list[str]:
+    """Reject unknown spots and drop duplicates (order preserved)."""
+    from src.config import SPOTS
+
+    unknown = [s for s in spot_ids if s not in SPOTS]
+    if unknown:
+        raise ValueError(f"Unknown spot(s): {', '.join(unknown)}")
+    return list(dict.fromkeys(spot_ids))
+
+
 class AlertConfigCreate(BaseModel):
-    channel: str = Field(pattern="^(telegram|email)$")
-    chat_id: str | None = None
-    email: str | None = None
-    spot_ids: list[str]
+    channel: Literal["telegram", "email"]
+    # Telegram chat IDs are integers (negative for groups)
+    chat_id: str | None = Field(default=None, pattern=r"^-?\d{1,20}$")
+    email: EmailStr | None = None
+    spot_ids: list[str] = Field(min_length=1, max_length=10)
     min_score: float = Field(default=6.0, ge=0, le=10)
     quiet_start_hour: int = Field(default=22, ge=0, le=23)
     quiet_end_hour: int = Field(default=6, ge=0, le=23)
+
+    _check_spots = field_validator("spot_ids")(_validate_spot_ids)
+
+    @model_validator(mode="after")
+    def _destination_matches_channel(self) -> "AlertConfigCreate":
+        if self.channel == "telegram":
+            if not self.chat_id:
+                raise ValueError("chat_id is required for telegram alerts")
+            self.email = None
+        else:
+            if not self.email:
+                raise ValueError("email is required for email alerts")
+            self.chat_id = None
+        return self
+
+
+class AlertConfigUpdate(BaseModel):
+    """Partial update. Channel/destination are immutable — delete and recreate."""
+
+    enabled: bool | None = None
+    spot_ids: list[str] | None = Field(default=None, min_length=1, max_length=10)
+    min_score: float | None = Field(default=None, ge=0, le=10)
+    quiet_start_hour: int | None = Field(default=None, ge=0, le=23)
+    quiet_end_hour: int | None = Field(default=None, ge=0, le=23)
+
+    @field_validator("spot_ids")
+    @classmethod
+    def _check_spots(cls, v: list[str] | None) -> list[str] | None:
+        return None if v is None else _validate_spot_ids(v)
 
 
 class AlertConfigResponse(BaseModel):
     id: int
     channel: str
+    chat_id: str | None = None
+    email: str | None = None
     spot_ids: list[str]
     min_score: float
     enabled: bool
+    quiet_start_hour: int
+    quiet_end_hour: int
+
+
+class AlertListResponse(BaseModel):
+    items: list[AlertConfigResponse]
+    next_cursor: int | None = None
 
 
 # ---------------------------------------------------------------------------

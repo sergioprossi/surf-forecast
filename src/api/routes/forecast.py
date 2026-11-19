@@ -66,6 +66,52 @@ def _score_to_slot(sr: ScoreResult) -> ForecastSlot:
     )
 
 
+@router.get("/forecast/compare", response_model=CompareResponse)
+async def compare_spots(
+    spots: str = Query(..., description="Comma-separated spot IDs"),
+    time: datetime | None = Query(None, description="ISO timestamp (defaults to nearest hour)"),
+    session: AsyncSession = Depends(get_session),
+) -> CompareResponse:
+    """Compare multiple spots at the same time.
+
+    NOTE: must be registered before /forecast/{spot_id}, otherwise "compare"
+    is captured as a spot_id and this route is unreachable.
+    """
+    spot_ids = list(dict.fromkeys(s.strip() for s in spots.split(",") if s.strip()))
+    if not spot_ids:
+        raise HTTPException(422, "At least one spot ID is required")
+    for sid in spot_ids:
+        if sid not in SPOTS:
+            raise HTTPException(404, f"Unknown spot: {sid}")
+
+    # Default to nearest hour
+    if time is None:
+        time = datetime.now(timezone.utc)
+    elif time.tzinfo is None:
+        time = time.replace(tzinfo=timezone.utc)
+    # Forecast rows are hourly — snap to the hour so lookups match exactly
+    time = time.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+
+    snapshots = []
+    for sid in spot_ids:
+        sr = await score_spot_from_db(session, sid, time)
+        if sr:
+            slot = _score_to_slot(sr)
+            snapshots.append(
+                SpotSnapshot(
+                    spot=_spot_info(sid),
+                    time=sr.forecast_time,
+                    total_score=sr.total_score,
+                    rating=sr.rating,
+                    summary=sr.summary,
+                    components=slot.components,
+                    conditions=slot.conditions,
+                )
+            )
+
+    return CompareResponse(time=time, spots=snapshots)
+
+
 @router.get("/forecast/{spot_id}", response_model=SpotForecastResponse)
 async def get_forecast(
     spot_id: str,
@@ -92,40 +138,6 @@ async def get_forecast(
             slots.append(_score_to_slot(sr))
 
     return SpotForecastResponse(spot=_spot_info(spot_id), forecast=slots)
-
-
-@router.get("/forecast/compare", response_model=CompareResponse)
-async def compare_spots(
-    spots: str = Query(..., description="Comma-separated spot IDs"),
-    time: datetime | None = Query(None, description="ISO timestamp (defaults to nearest hour)"),
-    session: AsyncSession = Depends(get_session),
-) -> CompareResponse:
-    """Compare multiple spots at the same time."""
-    spot_ids = [s.strip() for s in spots.split(",")]
-    for sid in spot_ids:
-        if sid not in SPOTS:
-            raise HTTPException(404, f"Unknown spot: {sid}")
-
-    # Default to nearest hour
-    if time is None:
-        now = datetime.now(timezone.utc)
-        time = now.replace(minute=0, second=0, microsecond=0)
-
-    snapshots = []
-    for sid in spot_ids:
-        sr = await score_spot_from_db(session, sid, time)
-        if sr:
-            snapshots.append(
-                SpotSnapshot(
-                    spot=_spot_info(sid),
-                    time=sr.forecast_time,
-                    total_score=sr.total_score,
-                    rating=sr.rating,
-                    summary=sr.summary,
-                )
-            )
-
-    return CompareResponse(time=time, spots=snapshots)
 
 
 @router.get("/best-windows", response_model=BestWindowsResponse)

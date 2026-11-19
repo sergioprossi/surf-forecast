@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import React from 'react';
 
 import { AuthProvider } from './src/auth/AuthContext';
-import { MainTabs } from './src/navigation/MainTabs';
+import { RootStack } from './src/navigation/RootStack';
 import { colors } from './src/theme';
 
 const queryClient = new QueryClient({
@@ -34,7 +34,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <NavigationContainer theme={navTheme}>
-          <MainTabs />
+          <RootStack />
           <StatusBar style="light" />
         </NavigationContainer>
       </AuthProvider>

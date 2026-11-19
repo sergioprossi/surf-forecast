@@ -1,27 +1,70 @@
-"""Alert configuration endpoints."""
+"""Alert configuration endpoints — all scoped to the authenticated user."""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.auth import require_user
 from src.models.database import get_session
 from src.models.orm import AlertConfig, User
-from src.models.schemas import AlertConfigCreate, AlertConfigResponse
+from src.models.schemas import (
+    AlertConfigCreate,
+    AlertConfigResponse,
+    AlertConfigUpdate,
+    AlertListResponse,
+)
 
 router = APIRouter(prefix="/api/v1", tags=["alerts"])
 
+# Cap per user so one account can't flood the alert scheduler
+MAX_ALERTS_PER_USER = 20
 
-@router.post("/alerts", response_model=AlertConfigResponse)
+
+def _to_response(row: AlertConfig) -> AlertConfigResponse:
+    return AlertConfigResponse(
+        id=row.id,
+        channel=row.channel,
+        chat_id=row.chat_id,
+        email=row.email,
+        spot_ids=row.spot_ids.split(","),
+        min_score=row.min_score,
+        enabled=bool(row.enabled),
+        quiet_start_hour=row.quiet_start_hour,
+        quiet_end_hour=row.quiet_end_hour,
+    )
+
+
+async def _get_owned(session: AsyncSession, alert_id: int, user: User) -> AlertConfig:
+    """Fetch an alert owned by `user`. Other users' alerts are reported as 404
+    (not 403) so IDs can't be probed."""
+    result = await session.execute(
+        select(AlertConfig)
+        .where(AlertConfig.id == alert_id)
+        .where(AlertConfig.user_id == user.id)
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        raise HTTPException(404, "Alert not found")
+    return row
+
+
+@router.post("/alerts", response_model=AlertConfigResponse, status_code=201)
 async def create_alert(
     body: AlertConfigCreate,
     session: AsyncSession = Depends(get_session),
     user: User = Depends(require_user),
 ) -> AlertConfigResponse:
     """Configure a new surf alert."""
+    existing = await session.execute(
+        select(AlertConfig.id).where(AlertConfig.user_id == user.id).limit(MAX_ALERTS_PER_USER)
+    )
+    if len(existing.all()) >= MAX_ALERTS_PER_USER:
+        raise HTTPException(409, f"Alert limit reached ({MAX_ALERTS_PER_USER})")
+
     row = AlertConfig(
+        user_id=user.id,
         channel=body.channel,
         chat_id=body.chat_id,
         email=body.email,
@@ -33,34 +76,57 @@ async def create_alert(
     session.add(row)
     await session.commit()
     await session.refresh(row)
+    return _to_response(row)
 
-    return AlertConfigResponse(
-        id=row.id,
-        channel=row.channel,
-        spot_ids=row.spot_ids.split(","),
-        min_score=row.min_score,
-        enabled=bool(row.enabled),
+
+@router.get("/alerts", response_model=AlertListResponse)
+async def list_alerts(
+    cursor: int | None = Query(None, ge=0, description="Return alerts with id > cursor"),
+    limit: int = Query(50, ge=1, le=100),
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_user),
+) -> AlertListResponse:
+    """List the current user's alert configurations (cursor-paginated by id)."""
+    stmt = (
+        select(AlertConfig)
+        .where(AlertConfig.user_id == user.id)
+        .order_by(AlertConfig.id)
+        .limit(limit + 1)  # fetch one extra to know if there's another page
+    )
+    if cursor is not None:
+        stmt = stmt.where(AlertConfig.id > cursor)
+
+    rows = (await session.execute(stmt)).scalars().all()
+    has_more = len(rows) > limit
+    rows = rows[:limit]
+    return AlertListResponse(
+        items=[_to_response(r) for r in rows],
+        next_cursor=rows[-1].id if has_more else None,
     )
 
 
-@router.get("/alerts", response_model=list[AlertConfigResponse])
-async def list_alerts(
+@router.patch("/alerts/{alert_id}", response_model=AlertConfigResponse)
+async def update_alert(
+    alert_id: int,
+    body: AlertConfigUpdate,
     session: AsyncSession = Depends(get_session),
-) -> list[AlertConfigResponse]:
-    """List all alert configurations."""
-    result = await session.execute(select(AlertConfig))
-    rows = result.scalars().all()
+    user: User = Depends(require_user),
+) -> AlertConfigResponse:
+    """Partially update an alert (e.g. toggle enabled, change spots/threshold)."""
+    row = await _get_owned(session, alert_id, user)
+    changes = body.model_dump(exclude_unset=True)
 
-    return [
-        AlertConfigResponse(
-            id=r.id,
-            channel=r.channel,
-            spot_ids=r.spot_ids.split(","),
-            min_score=r.min_score,
-            enabled=bool(r.enabled),
-        )
-        for r in rows
-    ]
+    for field in ("min_score", "quiet_start_hour", "quiet_end_hour"):
+        if changes.get(field) is not None:
+            setattr(row, field, changes[field])
+    if changes.get("enabled") is not None:
+        row.enabled = changes["enabled"]
+    if changes.get("spot_ids") is not None:
+        row.spot_ids = ",".join(changes["spot_ids"])
+
+    await session.commit()
+    await session.refresh(row)
+    return _to_response(row)
 
 
 @router.delete("/alerts/{alert_id}")
@@ -70,13 +136,7 @@ async def delete_alert(
     user: User = Depends(require_user),
 ) -> dict:
     """Delete an alert configuration."""
-    result = await session.execute(
-        select(AlertConfig).where(AlertConfig.id == alert_id)
-    )
-    row = result.scalar_one_or_none()
-    if row is None:
-        raise HTTPException(404, "Alert not found")
-
+    row = await _get_owned(session, alert_id, user)
     await session.delete(row)
     await session.commit()
     return {"deleted": alert_id}

@@ -184,7 +184,7 @@ async def test_protected_endpoint_with_token(client: AsyncClient):
         },
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 201
 
 
 async def test_protected_endpoint_with_bad_token(client: AsyncClient):

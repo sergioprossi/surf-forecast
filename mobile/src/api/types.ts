@@ -57,6 +57,9 @@ export interface SpotSnapshot {
   total_score: number;
   rating: string;
   summary: string;
+  /** Only populated by /forecast/compare */
+  components?: ComponentScores | null;
+  conditions?: RawConditions | null;
 }
 
 export interface CompareResponse {
@@ -104,3 +107,36 @@ export interface SessionFeedbackResponse {
   actual_rating: number;
   notes: string | null;
 }
+
+export type AlertChannel = 'telegram' | 'email';
+
+export interface AlertConfig {
+  id: number;
+  channel: AlertChannel;
+  chat_id: string | null;
+  email: string | null;
+  spot_ids: string[];
+  min_score: number;
+  enabled: boolean;
+  quiet_start_hour: number;
+  quiet_end_hour: number;
+}
+
+export interface AlertListResponse {
+  items: AlertConfig[];
+  next_cursor: number | null;
+}
+
+export interface AlertConfigCreate {
+  channel: AlertChannel;
+  chat_id?: string | null;
+  email?: string | null;
+  spot_ids: string[];
+  min_score: number;
+  quiet_start_hour: number;
+  quiet_end_hour: number;
+}
+
+export type AlertConfigUpdate = Partial<
+  Pick<AlertConfig, 'enabled' | 'spot_ids' | 'min_score' | 'quiet_start_hour' | 'quiet_end_hour'>
+>;
